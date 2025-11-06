@@ -1,0 +1,40 @@
+class TText {
+static const String onboarding1 = "Report incidents instantly with photos & AI-powered analysis,Activate panic mode for live tracking, alarms & emergency response";
+static const String onboarding2 = "Track your route in real-time and share it with trusted contacts.";
+static const String onboarding3 = "Stay informed with instant safety alerts based on your location!";
+static const String onboardingtitle = "One-Click Crime Reporting";
+static const String onboardingtitle2 = "Virtual Escort for Women’s Safety ";
+static const String onboardingtitle3 = "Real-Time Alerts & Notifications ";
+static const String logintitle ="Login";
+static const String loginsubtitle ="Stay Safe, Stay Connected – Log In to Your Guardian App";
+
+static const String email = "Email";
+static const String password = "Password";
+static const String remember = "Remember me ";
+static const String forget = "Foreget Password";
+static const String signin ="SignIn";
+static const String createAccount = "Create Account";
+static const String signinwith = "Or Sign Up with";
+static const String signuptitles = "Let's Create Your Account";
+static const String firstname = "First name";
+static const String iagreeto = "I Agree with";
+static const String Termsofuse = "Terms of use";
+static const String privatepolicy = "Privacy Policy";
+static const String username = "Username";
+static const String verification = "Verification";
+static const String resendEmail = "Resend Email";
+static const String resendEmailIn= "Resend Email in";
+static const String phonenumber = "Phone number";
+static const String RememberMe = "Remember Me";
+static const String newPassword = "New Password";
+static const String lastname = "Last Name";
+static const String and = "&";
+static const String confirmemail = "Confirm Your Email";
+static const String youraccountcreatedtitle = " Your account has created successfully";
+static const String youraccountcreatedsubtitle = " Welcome to the world of Sarak Setu where Your Virtual Safety Companion – Access Peace of Mind!";
+static const String forgottitle = "Forgot Password?";
+static const String forgotsubtitle = "Enter your new password";
+static const String submit = "Submit";
+static const String changepw= "Password Reset Email Sent";
+static const String changepwsub ="Your Account Security is our privacy we have sent you secured link to make safety changes for your password and keep your account protetcted";
+}

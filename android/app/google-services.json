@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "905580913979",
+    "project_id": "satark-d9cc7",
+    "storage_bucket": "satark-d9cc7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:905580913979:android:6d5c9bb03c321d7100c31e",
+        "android_client_info": {
+          "package_name": "com.example.live_crime_reporter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYsNc4meMW0a7aAyknhy9yORLuezj700E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

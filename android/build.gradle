@@ -1,4 +1,7 @@
 buildscript {
+  ext.kotlin_version = '1.8.0'
+
+
     repositories {
         google()
         mavenCentral()
@@ -13,6 +16,11 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        maven {
+            url = uri("http://34.82.5.94:8081/artifactory/libs-release-local")
+            allowInsecureProtocol = true
+        }
+
     }
 }
 

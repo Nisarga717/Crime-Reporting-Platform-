@@ -4,12 +4,22 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:live_crime_reporter/views/screens_navbar.dart';
 import 'package:record/record.dart';
 import 'package:camera/camera.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../community.dart';
+import 'audio_form.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:zego_uikit_prebuilt_call/zego_uikit_prebuilt_call.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import '../controllers/form_report_controller.dart';
+import '../services/form_report_service.dart';
 
 class AppTheme {
   // Primary colors
@@ -73,7 +83,14 @@ class AppTheme {
 }
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  final String userId;
+  final String callid;
+  final String username;
+  const MapScreen(
+      {super.key,
+      required this.userId,
+      required this.callid,
+      required this.username});
 
   @override
   _MapScreenState createState() => _MapScreenState();
@@ -88,6 +105,7 @@ class _MapScreenState extends State<MapScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   bool _isAnonymous = false;
   final AudioRecorder _audioRecorder = AudioRecorder();
+  int _currentNavIndex = 0;
 
   // Add variables to track swipe gesture
 
@@ -95,6 +113,25 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _getUserLocation();
+    requestNotificationPermission();
+  }
+
+  Future<void> requestNotificationPermission() async {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      print('✅ User granted permission');
+    } else if (settings.authorizationStatus == AuthorizationStatus.denied) {
+      print('❌ User denied permission');
+    } else {
+      print('🤔 Permission status: ${settings.authorizationStatus}');
+    }
   }
 
   Future<void> _getUserLocation() async {
@@ -104,6 +141,33 @@ class _MapScreenState extends State<MapScreen> {
       _currentLocation = LatLng(position.latitude, position.longitude);
       _mapController.move(_currentLocation, 15.0);
     });
+  }
+
+  void _onNavItemTapped(int index) {
+    if (index == _currentNavIndex) return;
+
+    setState(() {
+      _currentNavIndex = index;
+    });
+
+// Handle navigation to different screens
+    switch (index) {
+      case 0:
+// Already on map screen
+        break;
+      case 1:
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (context) => AnalyticsScreen()));
+        break;
+      case 2:
+        Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => VirtualEscortScreen()));
+        break;
+      case 3:
+        Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => OfflineReportScreen()));
+        break;
+    }
   }
 
   void _onMapTap(TapPosition tapPosition, LatLng latLng) {
@@ -563,17 +627,29 @@ class _MapScreenState extends State<MapScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         return AudioRecorderWidget(
-          onAudioSaved: (File audioFile) {
+          onAudioSaved: (File audioFile, Map<String, dynamic>? processedData) {
             setState(() {
               _selectedAudio = audioFile;
             });
-            // Show confirmation
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Audio recorded successfully"),
-                backgroundColor: Colors.green,
-              ),
-            );
+
+            // Show confirmation with details from the processed data
+            if (processedData != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                      "Audio processed: ${processedData['incident_type']}"),
+                  backgroundColor: AppTheme.success,
+                ),
+              );
+            } else {
+              // Show basic confirmation if no processed data
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Audio recorded successfully"),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
           },
         );
       },
@@ -581,6 +657,14 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _showCrimeReportForm() {
+    final crimeReportController = CrimeReportController(
+      latitude: _selectedLocation?.latitude,
+      longitude: _selectedLocation?.longitude,
+    );
+
+    // Create service instance
+    final crimeReportService = CrimeReportService();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -594,251 +678,535 @@ class _MapScreenState extends State<MapScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppTheme.radiusXLarge),
+                top: Radius.circular(20),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 12,
                   spreadRadius: 0,
-                  offset: const Offset(0, -2),
+                  offset: const Offset(0, -3),
                 ),
               ],
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Pull handle
                     Center(
                       child: Container(
-                        width: 50,
-                        height: 5,
+                        width: 40,
+                        height: 4,
                         decoration: BoxDecoration(
-                          color: AppTheme.divider,
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusMedium),
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
                         ),
                       ),
                     ),
                     const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.edit_note,
-                            color: AppTheme.primary,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        const Expanded(
-                          child: Text(
+
+                    // Title Section
+                    Center(
+                      child: Column(
+                        children: [
+                          const Text(
                             "Crime Report Form",
                             style: TextStyle(
-                              fontSize: AppTheme.fontSizeXXLarge,
-                              fontWeight: AppTheme.bold,
-                              color: AppTheme.textPrimary,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: Text(
-                        "Please provide details about the incident",
-                        style: TextStyle(
-                          fontSize: AppTheme.fontSizeSmall,
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.all(AppTheme.spacingMedium),
-                      decoration: BoxDecoration(
-                        color: AppTheme.info.withOpacity(0.05),
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
-                        border:
-                            Border.all(color: AppTheme.info.withOpacity(0.2)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.location_on,
-                            color: AppTheme.info,
-                            size: 24,
-                          ),
-                          const SizedBox(width: AppTheme.spacingMedium),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "Selected Location",
-                                  style: TextStyle(
-                                    fontSize: AppTheme.fontSizeSmall,
-                                    fontWeight: AppTheme.medium,
-                                    color: AppTheme.info,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "${_selectedLocation!.latitude.toStringAsFixed(5)}, ${_selectedLocation!.longitude.toStringAsFixed(5)}",
-                                  style: TextStyle(
-                                    fontSize: AppTheme.fontSizeSmall,
-                                    color: AppTheme.textPrimary,
-                                  ),
-                                ),
-                              ],
+                          const SizedBox(height: 8),
+                          Text(
+                            "Please provide details about the incident",
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[700],
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
+
+                    // Two-column layout for Date and Time
+                    Row(
+                      children: [
+                        // Date field
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Date",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                height: 50,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: Text(
+                                  DateTime.now()
+                                      .toLocal()
+                                      .toString()
+                                      .split(' ')[0],
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+
+                        // Time field
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Time",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                height: 50,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: Text(
+                                  DateTime.now()
+                                      .toLocal()
+                                      .toString()
+                                      .split(' ')[1]
+                                      .split('.')[0],
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Perpetrator field
                     const Text(
-                      "Description",
+                      "Perpetrator",
                       style: TextStyle(
-                        fontSize: AppTheme.fontSizeMedium,
-                        fontWeight: AppTheme.semiBold,
-                        color: AppTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 50,
+                      child: TextField(
+                        controller: crimeReportController.perpetratorController,
+                        style: const TextStyle(color: Colors.black),
+                        decoration: InputDecoration(
+                          hintText: "Enter perpetrator's name...",
+                          hintStyle: TextStyle(color: Colors.grey[500]),
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[200]!),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[200]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                                color: Colors.blueAccent, width: 1.5),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Details field
+                    const Text(
+                      "Details",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
                       ),
                     ),
                     const SizedBox(height: 8),
                     TextField(
-                      controller: _descriptionController,
+                      controller: crimeReportController.detailsController,
+                      style: const TextStyle(color: Colors.black),
                       decoration: InputDecoration(
-                        hintText: "Describe what you witnessed...",
-                        hintStyle: TextStyle(color: AppTheme.textHint),
+                        hintText: "Provide details about the incident...",
+                        hintStyle: TextStyle(color: Colors.grey[500]),
+                        contentPadding: const EdgeInsets.all(16),
                         border: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusMedium),
-                          borderSide: BorderSide(color: AppTheme.divider),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey[200]!),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusMedium),
-                          borderSide: BorderSide(color: AppTheme.divider),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey[200]!),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusMedium),
-                          borderSide:
-                              BorderSide(color: AppTheme.primary, width: 2),
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: Colors.blueAccent, width: 1.5),
                         ),
                         filled: true,
-                        fillColor: AppTheme.background,
-                        contentPadding:
-                            const EdgeInsets.all(AppTheme.spacingMedium),
+                        fillColor: Colors.grey[50],
                       ),
                       maxLines: 4,
-                      style: const TextStyle(
-                        fontSize: AppTheme.fontSizeMedium,
-                        color: AppTheme.textPrimary,
-                      ),
                     ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      "Evidence",
-                      style: TextStyle(
-                        fontSize: AppTheme.fontSizeMedium,
-                        fontWeight: AppTheme.semiBold,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 20),
+
+                    // Two-column layout for Report Type and Incident Type
                     Row(
                       children: [
-                        _buildAttachmentButton(
-                          icon: Icons.video_file,
-                          label: "Video",
-                          isAttached: _selectedVideo != null,
-                          onPressed: _recordVideo,
+                        // Report Type
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Report Type",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                height: 50,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: const Text(
+                                  "Incident Report",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(width: 12),
-                        _buildAttachmentButton(
-                          icon: Icons.mic,
-                          label: "Audio",
-                          isAttached: _selectedAudio != null,
-                          onPressed: _recordAudio,
+                        const SizedBox(width: 16),
+
+                        // Status field
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Status",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                height: 50,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: const Text(
+                                  "New",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.background,
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
-                        border: Border.all(color: AppTheme.divider),
-                      ),
-                      child: CheckboxListTile(
-                        title: const Text(
-                          "Report Anonymously",
-                          style: TextStyle(
-                            fontWeight: AppTheme.semiBold,
-                            fontSize: AppTheme.fontSizeMedium,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                        subtitle: Text(
-                          "Your identity will not be disclosed",
-                          style: TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: AppTheme.fontSizeSmall,
-                          ),
-                        ),
-                        value: _isAnonymous,
-                        activeColor: AppTheme.primary,
-                        checkColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusMedium),
-                        ),
-                        onChanged: (value) {
-                          setState(() {
-                            _isAnonymous = value!;
-                          });
-                        },
+                    const SizedBox(height: 20),
+
+                    // Incident Type field
+                    const Text(
+                      "Incident Type",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 8),
                     SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
-                          foregroundColor: Colors.white,
-                          elevation: AppTheme.elevationMedium,
-                          shadowColor: AppTheme.primary.withOpacity(0.4),
-                          shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusMedium),
+                      height: 50,
+                      child: TextField(
+                        controller:
+                            crimeReportController.incidentTypeController,
+                        style: const TextStyle(color: Colors.black),
+                        decoration: InputDecoration(
+                          hintText: "Enter incident type...",
+                          hintStyle: TextStyle(color: Colors.grey[500]),
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[200]!),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[200]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                                color: Colors.blueAccent, width: 1.5),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Severity dropdown
+                    const Text(
+                      "Severity",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 50,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: crimeReportController.selectedSeverity,
+                          style: const TextStyle(
+                              color: Colors.black, fontSize: 16),
+                          icon: const Icon(Icons.arrow_drop_down,
+                              color: Colors.blueAccent),
+                          items: <String>['Low', 'Medium', 'High']
+                              .map<DropdownMenuItem<String>>((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            );
+                          }).toList(),
+                          onChanged: (String? newValue) {
+                            if (newValue != null) {
+                              setState(() {
+                                crimeReportController.setSeverity(newValue);
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Two-column layout for Latitude and Longitude
+                    Row(
+                      children: [
+                        // Latitude field
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Latitude",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                height: 50,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: Text(
+                                  "${_selectedLocation!.latitude.toStringAsFixed(5)}",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        onPressed: () {
-                          // Submit logic here
-                          Navigator.pop(context);
-                          // Show success message and gamification popup
-                          _showSuccessSnackbar("Report submitted successfully");
-                          _showGamificationPopup();
+                        const SizedBox(width: 16),
+
+                        // Longitude field
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Longitude",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                height: 50,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: Text(
+                                  "${_selectedLocation!.longitude.toStringAsFixed(5)}",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Submit button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueAccent,
+                          foregroundColor: Colors.white,
+                          elevation: 2,
+                          shadowColor: Colors.blueAccent.withOpacity(0.4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () async {
+                          // Validate the form
+                          final error = crimeReportController.validateForm();
+                          if (error != null) {
+                            _showErrorSnackbar(error);
+                            return;
+                          }
+
+                          try {
+                            // Show loading indicator
+                            _showLoadingDialog();
+
+                            // Get current user ID
+                            final userId =
+                                await crimeReportService.getCurrentUserId();
+
+                            if (userId == null) {
+                              Navigator.pop(context); // Close loading dialog
+                              _showErrorSnackbar("User not authenticated");
+                              return;
+                            }
+
+                            // Get form data with user ID
+                            final reportData =
+                                crimeReportController.getFormData(userId);
+
+                            // Submit report
+                            await crimeReportService
+                                .submitCrimeReport(reportData);
+
+                            // Update user points (awarding 10 points for submitting a report)
+                            await crimeReportService.updateUserPoints(
+                                userId, 10);
+
+                            // Close loading dialog
+                            Navigator.pop(context);
+
+                            // Close form
+                            Navigator.pop(context);
+
+                            // Show success message
+                            _showSuccessSnackbar(
+                                "Report submitted successfully");
+
+                            // Show gamification popup
+                            _showGamificationPopup();
+                          } catch (e) {
+                            // Close loading dialog if open
+                            Navigator.pop(context);
+
+                            // Show error message
+                            _showErrorSnackbar("Failed to submit report: $e");
+                          }
                         },
                         child: const Text(
                           "SUBMIT REPORT",
                           style: TextStyle(
-                            fontSize: AppTheme.fontSizeMedium,
-                            fontWeight: AppTheme.bold,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
                             letterSpacing: 1.2,
                           ),
                         ),
@@ -852,6 +1220,38 @@ class _MapScreenState extends State<MapScreen> {
           );
         });
       },
+    );
+  }
+
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text("Submitting report..."),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showErrorSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 3),
+      ),
     );
   }
 
@@ -911,7 +1311,7 @@ class _MapScreenState extends State<MapScreen> {
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         elevation: 4,
-        backgroundColor: AppTheme.primary,
+        backgroundColor: Colors.lightGreen[600],
         foregroundColor: Colors.white,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
@@ -977,117 +1377,236 @@ class _MapScreenState extends State<MapScreen> {
         ],
       ),
       body: GestureDetector(
-        // Track the start of horizontal drag
+          // Track the start of horizontal drag
 
-        // Track the end of horizontal drag
+          // Track the end of horizontal drag
 
-        child: Stack(
+          child: Stack(children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _currentLocation,
+            initialZoom: 5.0,
+            onTap: _onMapTap,
+          ),
           children: [
-            FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _currentLocation,
-                initialZoom: 5.0,
-                onTap: _onMapTap,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate:
-                      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            TileLayer(
+              urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            ),
+            // Add markers for current location
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: _currentLocation,
+                  width: 40,
+                  height: 40,
+                  child: _buildPulsingLocationMarker(),
                 ),
-                // Add markers for current location
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: _currentLocation,
-                      width: 40,
-                      height: 40,
-                      child: _buildPulsingLocationMarker(),
-                    ),
-                    if (_selectedLocation != null)
-                      Marker(
-                        point: _selectedLocation!,
-                        width: 40,
-                        height: 40,
-                        child: _buildSelectedLocationMarker(),
-                      ),
-                  ],
-                ),
+                if (_selectedLocation != null)
+                  Marker(
+                    point: _selectedLocation!,
+                    width: 40,
+                    height: 40,
+                    child: _buildSelectedLocationMarker(),
+                  ),
               ],
             ),
-
-            // Add a floating action button for current location - moved to very bottom right
-            Positioned(
-              bottom: 20, // Reduced distance from bottom
-              right: 20, // Consistent distance from right
-              child: FloatingActionButton(
-                backgroundColor: AppTheme.primary,
-                elevation: AppTheme.elevationMedium,
-                onPressed: () {
-                  _getUserLocation();
-                },
-                child: const Icon(Icons.my_location, color: Colors.white),
-              ),
-            ),
-
-            // Add a hint card at the top
-            Positioned(
-              top: 16,
-              left: 16,
-              right: 16,
-              child: Card(
-                elevation: AppTheme.elevationSmall,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(AppTheme.spacingMedium),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: AppTheme.info),
-                      const SizedBox(width: AppTheme.spacingSmall),
-                      Expanded(
-                        child: Text(
-                          "Tap on the map to report an incident",
-                          style: TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: AppTheme.fontSizeSmall,
+          ],
+        ),
+        Positioned(
+                top: 80, // Below the hint card
+                left: 16,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Community Feature
+                    InkWell(
+                      onTap: () {
+                        // Navigate to community screen
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CommunityScreen(),
                           ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spacingMedium,
+                          vertical: AppTheme.spacingSmall,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(
+                              AppTheme.radiusMedium),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              spreadRadius: 1,
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.people,
+                              color: AppTheme.primary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: AppTheme.spacingSmall),
+                            Text(
+                              "Community",
+                              style: TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontWeight: FontWeight.w500,
+                                fontSize: AppTheme.fontSizeSmall,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(Icons.close,
-                            size: 16, color: AppTheme.textHint),
-                        onPressed: () {
-                          // Hide the hint
-                        },
+                    ),
+                    const SizedBox(height: AppTheme.spacingMedium),
+                    // Offline Nearby Feature
+                    InkWell(
+                      onTap: () {
+
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spacingMedium,
+                          vertical: AppTheme.spacingSmall,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(
+                              AppTheme.radiusMedium),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              spreadRadius: 1,
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.wifi_off,
+                              color: AppTheme.primary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: AppTheme.spacingSmall),
+                            Text(
+                              "Nearby Offline",
+                              style: TextStyle(
+                                color: AppTheme.textPrimary,
+                                fontWeight: FontWeight.w500,
+                                fontSize: AppTheme.fontSizeSmall,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+              ),
+
+        // Add a floating action button for current location - moved to very bottom right
+        Positioned(
+          bottom: 20, // Reduced distance from bottom
+          right: 20, // Consistent distance from right
+          child: FloatingActionButton(
+            backgroundColor: Colors.red,
+            elevation: AppTheme.elevationMedium,
+            onPressed: () {
+              _startVideoCall(context);
+            },
+            child: const Icon(Icons.sos, color: Colors.yellow),
+          ),
+        ),
+
+        // Add a hint card at the top
+
+
+        // Add a swipe indicator on the right edge
+        Positioned(
+          top: 0,
+          bottom: 0,
+          right: 0,
+          child: SizedBox(
+            width: 20,
+            child: Center(
+              child: Container(
+                height: 80,
+                width: 5,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                 ),
               ),
             ),
-
-            // Add a swipe indicator on the right edge
-            Positioned(
-              top: 0,
-              bottom: 0,
-              right: 0,
-              child: SizedBox(
-                width: 20,
-                child: Center(
-                  child: Container(
-                    height: 80,
-                    width: 5,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                    ),
-                  ),
-                ),
-              ),
+          ),
+        ),
+      ])),
+      bottomNavigationBar: Container(
+        height: 90,
+        decoration: BoxDecoration(
+          color: Colors.lightGreen,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.3),
+              spreadRadius: 2,
+              blurRadius: 5,
+              offset: Offset(0, -3),
             ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _currentNavIndex,
+            onTap: _onNavItemTapped,
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.lightGreen[600],
+            selectedItemColor: Colors.white,
+            unselectedItemColor: Colors.black,
+            elevation: 10, // Controls shadow depth
+            iconSize: 28, // Optional: Control icon size
+            selectedFontSize: 14, // Optional: Control selected font size
+            unselectedFontSize: 12,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.map),
+                label: 'Map',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.analytics),
+                label: 'Analytics',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.security),
+                label: 'Satark Saheli',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person),
+                label: 'Account',
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1160,6 +1679,34 @@ class _MapScreenState extends State<MapScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _startVideoCall(BuildContext context) {
+    // Replace with your Zego App ID and App Sign
+    const appID = 1385741659; // Your Zego App ID
+    const appSign =
+        'e6ce6dda9aafed3b1c3c713aaa7fa08d566aecd349c1283edd37c520f36043e5'; // Your Zego App Sign
+
+    // Generate a unique room ID and user ID for the call
+    String roomID = 'sos_call_room'; // You can generate a unique room ID
+    String userID =
+        'user_${DateTime.now().millisecondsSinceEpoch}'; // Unique user ID
+
+    // Start the Zego video call
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ZegoUIKitPrebuiltCall(
+          appID: appID,
+          appSign: appSign,
+          userID: userID,
+          callID: widget.callid,
+          userName: widget.username,
+          config: ZegoUIKitPrebuiltCallConfig
+              .oneOnOneVideoCall(), // Set to video call
+        ),
+      ),
     );
   }
 }
@@ -1355,7 +1902,7 @@ class _HoldToRecordCameraState extends State<HoldToRecordCamera> {
 }
 
 class AudioRecorderWidget extends StatefulWidget {
-  final Function(File) onAudioSaved;
+  final Function(File, Map<String, dynamic>?) onAudioSaved;
 
   const AudioRecorderWidget({super.key, required this.onAudioSaved});
 
@@ -1375,6 +1922,7 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
   StreamSubscription? _durationSubscription;
   StreamSubscription? _positionSubscription;
   StreamSubscription? _playerStateSubscription;
+  bool _isProcessing = false;
 
   // Add animation controller for recording animation
   late AnimationController _animationController;
@@ -1384,12 +1932,30 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
     super.initState();
     _checkPermission();
     _initAudioPlayer();
+    _requestBluetoothPermission();
 
     // Initialize animation controller
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
+  }
+
+  Future<void> _requestBluetoothPermission() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.bluetooth,
+      Permission.bluetoothScan,
+      Permission.bluetoothAdvertise,
+      Permission.bluetoothConnect,
+    ].request();
+
+    // Check if all permissions are granted
+    if (statuses.values.every((status) => status.isGranted)) {
+      // Permissions are granted, you can initialize Bridgefy here
+    } else {
+      // Handle the case when permissions are not granted
+      print("No thaye baka🔴🔴🔴🔴🔴");
+    }
   }
 
   void _initAudioPlayer() {
@@ -1487,6 +2053,145 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
     return '$minutes:$seconds';
   }
 
+  Future<void> _sendAudioToApi() async {
+    if (_recordedFilePath == null) return;
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      // Create a multipart request
+      var apiUrl = 'http://192.168.53.135:8052/process-audio/';
+
+      print("Attempting to connect to API at: $apiUrl");
+
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse(apiUrl),
+      );
+
+      // Add the language parameter
+      request.fields['language'] = 'hi';
+
+      // Add API key
+      request.fields['api_key'] = 'AIzaSyC1LqzbDAPKoi-BKMWl19ahOon455iGFZ8';
+
+      // Add the audio file
+      final audioFile = await http.MultipartFile.fromPath(
+        'file',
+        _recordedFilePath!,
+      );
+      request.files.add(audioFile);
+
+      print("Sending request with file: $_recordedFilePath");
+
+      var response = await request.send().timeout(
+        const Duration(seconds: 60),
+        onTimeout: () {
+          print("Request timed out after 60 seconds");
+          throw TimeoutException('API request timed out');
+        },
+      );
+
+      print("Response status code: ${response.statusCode}");
+
+      // Get the full response body
+      final responseBody = await response.stream.bytesToString();
+      print("Response body: $responseBody");
+
+      if (response.statusCode == 200) {
+        // Parse the response
+        var jsonData = json.decode(responseBody);
+
+        // Extract transcription
+        String transcription = jsonData['transcription'] ?? '';
+
+        // Parse the form_data which is a JSON string inside a markdown code block
+        String formDataStr = jsonData['form_data'] ?? '';
+
+        // Extract the JSON part from the markdown code block
+        RegExp regex = RegExp(r'```json\n(.*?)\n```', dotAll: true);
+        Match? match = regex.firstMatch(formDataStr);
+
+        Map<String, dynamic> formData = {};
+        if (match != null) {
+          String jsonStr = match.group(1) ?? '{}';
+          formData = json.decode(jsonStr);
+        }
+
+        // Create a complete data map
+        Map<String, dynamic> completeData = {
+          'transcription': transcription,
+          'incident_type': formData['incide ent_type'] ??
+              formData['incident_type'] ??
+              'Unknown',
+          'location': formData['location'] ?? 'Unknown',
+          'time': formData['time'] ?? 'Unknown',
+          'perpetrator': formData['perpetrator'] ?? 'Unknown',
+          'details': formData['Details'] ?? '',
+        };
+
+        // Navigate to the form screen
+        Navigator.pop(context); // Close the recording dialog
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => IncidentFormScreen(
+              audioFile: File(_recordedFilePath!),
+              initialData: completeData,
+              onSubmit: (updatedData) {
+                // Handle the form submission
+                widget.onAudioSaved(
+                  File(_recordedFilePath!),
+                  updatedData,
+                );
+                Navigator.pop(context); // Return to map screen
+              },
+            ),
+          ),
+        );
+      } else {
+        print("API returned error status: ${response.statusCode}");
+        _useFallbackProcessing();
+      }
+    } catch (e) {
+      print("API error: $e");
+      _useFallbackProcessing();
+    } finally {
+      setState(() {
+        _isProcessing = false;
+      });
+    }
+  }
+
+  // Add a fallback method when API is unavailable
+  void _useFallbackProcessing() {
+    // Create mock processed data
+    final mockData = {
+      'incident_type': 'Suspicious Activity',
+      'location': 'Near current location',
+      'time': DateTime.now().toString(),
+      'perpetrator': 'Unknown',
+      'details': 'Audio recording submitted for review',
+    };
+
+    // Show a message to the user
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Processing locally - API unavailable"),
+        backgroundColor: AppTheme.warning,
+      ),
+    );
+
+    // Pass the audio file with mock data
+    widget.onAudioSaved(File(_recordedFilePath!), mockData);
+
+    // Close the bottom sheet
+    Navigator.pop(context);
+  }
+
   @override
   void dispose() {
     _recorder.dispose();
@@ -1550,8 +2255,8 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
                 Text(
                   "Record Audio Statement",
                   style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    fontWeight: FontWeight.normal,
                     color: AppTheme.textPrimary,
                   ),
                 ),
@@ -1651,14 +2356,15 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
                         Expanded(
                           child: _buildControlButton(
                             icon: Icons.check_circle,
-                            label: "Use Recording",
+                            label: _isProcessing
+                                ? "Processing..."
+                                : "Use Recording",
                             color: AppTheme.success,
-                            onPressed: () {
-                              if (_recordedFilePath != null) {
-                                widget.onAudioSaved(File(_recordedFilePath!));
-                                Navigator.pop(context);
-                              }
-                            },
+                            onPressed: _isProcessing
+                                ? null
+                                : () {
+                                    _sendAudioToApi();
+                                  },
                           ),
                         ),
                       ],
@@ -1678,7 +2384,7 @@ class _AudioRecorderWidgetState extends State<AudioRecorderWidget>
     required IconData icon,
     required String label,
     required Color color,
-    required VoidCallback onPressed,
+    VoidCallback? onPressed,
   }) {
     return ElevatedButton.icon(
       onPressed: onPressed,
