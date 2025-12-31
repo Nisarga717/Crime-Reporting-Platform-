@@ -7,9 +7,13 @@ import 'firebase_options.dart';
 // Import the local notification service
 import 'services/local_notification_service.dart';
 import 'package:live_crime_reporter/supabase/supa_config.dart'; // Ensure you have this service implemented
+import 'package:get_storage/get_storage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize GetStorage for onboarding and preferences
+  await GetStorage.init();
 
   try {
     // Initialize Firebase
