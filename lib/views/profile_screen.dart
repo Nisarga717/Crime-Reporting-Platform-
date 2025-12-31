@@ -211,7 +211,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Icon(Icons.error_outline, size: 64, color: Colors.grey),
                       const SizedBox(height: 16),
-                      const Text('Failed to load profile data'),
+                      const Text(
+                        'Failed to load profile data',
+                        style: TextStyle(color: Colors.black),
+                      ),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadUserData,
@@ -432,6 +435,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
+              color: Colors.black,
             ),
           ),
           const SizedBox(height: 20),
@@ -498,10 +502,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextField(
             controller: controller,
             enabled: editable,
+            style: const TextStyle(color: Colors.black),
             decoration: InputDecoration(
               prefixIcon: Icon(icon, color: TColors.primaryColor),
               filled: true,
               fillColor: editable ? Colors.grey[50] : Colors.grey[100],
+              hintStyle: TextStyle(color: Colors.grey[600]),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: Colors.grey[300]!),
@@ -605,10 +611,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title,
         style: TextStyle(
           fontWeight: FontWeight.w500,
-          color: isDestructive ? Colors.red : null,
+          color: isDestructive ? Colors.red : Colors.black,
         ),
       ),
-      subtitle: Text(subtitle),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(color: Colors.black54),
+      ),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );
