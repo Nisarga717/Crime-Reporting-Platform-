@@ -11,26 +11,52 @@ import 'package:live_crime_reporter/supabase/supa_config.dart'; // Ensure you ha
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    // Initialize Firebase
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print("✅ Firebase initialized successfully");
+  } catch (e) {
+    print("❌ Firebase initialization error: $e");
+    // Continue anyway - Firebase might not be critical for basic functionality
+  }
 
-await MySupabaseClient.initialize();
-  // Print FCM token
-  String? token = await FirebaseMessaging.instance.getToken();
-  print("FCM Token: $token"); // Print the FCM token to the terminal
+  try {
+    // Initialize Supabase
+    await MySupabaseClient.initialize();
+    print("✅ Supabase initialized successfully");
+  } catch (e) {
+    print("❌ Supabase initialization error: $e");
+    print("⚠️  App will continue but authentication features may not work");
+    // Don't crash the app - show error to user instead
+  }
 
-  // Ensure location permissions are granted before launching the app
-  await _checkLocationPermission();
+  try {
+    // Print FCM token
+    String? token = await FirebaseMessaging.instance.getToken();
+    print("FCM Token: $token"); // Print the FCM token to the terminal
+  } catch (e) {
+    print("⚠️  FCM token error: $e");
+  }
 
-  // Listen for foreground messages
-  FirebaseMessaging.onBackgroundMessage(FCMService.backgroundHandler);
-  //inapp
+  try {
+    // Ensure location permissions are granted before launching the app
+    await _checkLocationPermission();
+  } catch (e) {
+    print("⚠️  Location permission error: $e");
+  }
 
-  // Initialize FCM Service
-  FCMService fcmService = FCMService();
-  await fcmService.initializeFCM();
+  try {
+    // Listen for foreground messages
+    FirebaseMessaging.onBackgroundMessage(FCMService.backgroundHandler);
+    
+    // Initialize FCM Service
+    FCMService fcmService = FCMService();
+    await fcmService.initializeFCM();
+  } catch (e) {
+    print("⚠️  FCM Service error: $e");
+  }
 
   runApp(App());
 }

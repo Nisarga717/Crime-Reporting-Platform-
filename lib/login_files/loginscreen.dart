@@ -48,11 +48,43 @@ class LoginController extends GetxController {
       final user = response.user;
 
       if (user != null) {
-        Get.offAll(() => MapScreen(
-              userId: user.id,
-              callid: '928382', // You might want to generate this dynamically
-              username: user.email?.split('@')[0] ?? 'User',
-            ));
+        // Check if email is verified
+        if (user.emailConfirmedAt == null) {
+          Get.snackbar(
+            'Email Not Verified',
+            'Please verify your email before logging in. Check your inbox for the verification link.',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.orange.withOpacity(0.1),
+            colorText: Colors.orange[800]!,
+            duration: const Duration(seconds: 5),
+          );
+          isLoading.value = false;
+          return;
+        }
+
+        // Get user's numeric ID from users table
+        try {
+          final userData = await supabase
+              .from('users')
+              .select('id')
+              .eq('uuid', user.id)
+              .maybeSingle();
+
+          final userId = userData?['id']?.toString() ?? user.id;
+
+          Get.offAll(() => MapScreen(
+                userId: userId,
+                callid: '928382',
+                username: user.email?.split('@')[0] ?? 'User',
+              ));
+        } catch (e) {
+          // If user doesn't exist in users table, still allow login with UUID
+          Get.offAll(() => MapScreen(
+                userId: user.id,
+                callid: '928382',
+                username: user.email?.split('@')[0] ?? 'User',
+              ));
+        }
       } else {
         Get.snackbar(
           'Authentication Error',
@@ -63,12 +95,19 @@ class LoginController extends GetxController {
         );
       }
     } on AuthException catch (e) {
+      String errorMessage = e.message;
+      if (e.message.contains('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password. Please try again.';
+      } else if (e.message.contains('Email not confirmed')) {
+        errorMessage = 'Please verify your email before logging in.';
+      }
       Get.snackbar(
         'Authentication Error',
-        e.message,
+        errorMessage,
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red.withOpacity(0.1),
         colorText: Colors.red,
+        duration: const Duration(seconds: 4),
       );
     } catch (e) {
       Get.snackbar(

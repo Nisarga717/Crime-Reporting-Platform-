@@ -8,9 +8,9 @@ class MySupabaseClient {
   static Future<void> initialize() async {
     if (_instance == null) {
       await Supabase.initialize(
-        url: 'https://vuilqikbakoyydfrjggt.supabase.co', // Replace with your Supabase URL
+        url: 'https://qlpsbyhzgwypqdpeafha.supabase.co', // Replace with your Supabase URL
         anonKey:
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ1aWxxaWtiYWtveXlkZnJqZ2d0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM4NDMzMDYsImV4cCI6MjA1OTQxOTMwNn0.sL3Ef-D-UyxIVsISae7gIfXdZn0zIhFzQ-FnbsiBep0', // Replace with your Supabase anon key
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFscHNieWh6Z3d5cHFkcGVhZmhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxNzYzNDYsImV4cCI6MjA4Mjc1MjM0Nn0.FrKifz25DDWH7aZXrzFpBBB6hQLWHXOxETrmOMWxpRs', // Replace with your Supabase anon key
       );
       _instance = MySupabaseClient._();
     }

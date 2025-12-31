@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:live_crime_reporter/views/screens_navbar.dart';
+import 'package:live_crime_reporter/views/profile_screen.dart';
 import 'package:record/record.dart';
 import 'package:camera/camera.dart';
 import 'package:path_provider/path_provider.dart';
@@ -156,8 +157,8 @@ class _MapScreenState extends State<MapScreen> {
 // Already on map screen
         break;
       case 1:
-        Navigator.of(context)
-            .push(MaterialPageRoute(builder: (context) => AnalyticsScreen()));
+        Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => AnalyticsScreen(userId: widget.userId)));
         break;
       case 2:
         Navigator.of(context).push(
@@ -165,7 +166,7 @@ class _MapScreenState extends State<MapScreen> {
         break;
       case 3:
         Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => OfflineReportScreen()));
+            MaterialPageRoute(builder: (context) => ProfileScreen(userId: widget.userId)));
         break;
     }
   }
