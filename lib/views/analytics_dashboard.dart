@@ -170,8 +170,22 @@ class _AnalyticsDashboardState extends State<AnalyticsDashboard> {
   }
 
   Widget _buildAreaHeader() {
-    final city = userData?['city'] ?? 'Your Area';
-    final state = userData?['state'] ?? '';
+    // Get user's location from profile data
+    final city = userData?['city']?.toString().trim() ?? '';
+    final state = userData?['state']?.toString().trim() ?? '';
+    final address = userData?['address']?.toString().trim() ?? '';
+    final pincode = userData?['pincode']?.toString() ?? '';
+    
+    // Build location display
+    String locationDisplay = 'Your Area';
+    if (city.isNotEmpty) {
+      locationDisplay = city;
+      if (state.isNotEmpty) {
+        locationDisplay += ', $state';
+      }
+    } else if (state.isNotEmpty) {
+      locationDisplay = state;
+    }
     
     return Container(
       padding: const EdgeInsets.all(20),
@@ -215,19 +229,29 @@ class _AnalyticsDashboardState extends State<AnalyticsDashboard> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  city,
+                  locationDisplay,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (state.isNotEmpty)
+                if (address.isNotEmpty)
                   Text(
-                    state,
+                    address,
                     style: const TextStyle(
                       color: Colors.white70,
-                      fontSize: 14,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                else if (pincode.isNotEmpty && pincode != '0')
+                  Text(
+                    'Pincode: $pincode',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
                     ),
                   ),
               ],

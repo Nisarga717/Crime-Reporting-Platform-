@@ -22,7 +22,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   void _launchWebsite() async {
-    final link = "https://satarknity.vercel.app/"; // Replace with your community website URL
+    final link = "https://satarknity-eight.vercel.app/"; // Community website URL
 
     try {
       await launchUrl(
