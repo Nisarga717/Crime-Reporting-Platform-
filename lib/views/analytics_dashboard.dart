@@ -87,6 +87,15 @@ class _AnalyticsDashboardState extends State<AnalyticsDashboard> {
     }
   }
 
+  String _getCityDisplay() {
+    String city = userData?['city']?.toString().trim() ?? '';
+    // Replace "anjar" with "rajkot" (case insensitive)
+    if (city.toLowerCase().contains('anjar')) {
+      city = city.replaceAll(RegExp(r'anjar', caseSensitive: false), 'rajkot');
+    }
+    return city.isNotEmpty ? city : 'Rajkot';
+  }
+
   List<Map<String, dynamic>> _generateMockReports() {
     final now = DateTime.now();
     return List.generate(8, (index) {
@@ -101,7 +110,7 @@ class _AnalyticsDashboardState extends State<AnalyticsDashboard> {
         'date': date.toIso8601String().split('T')[0],
         'time': '${(10 + index).toString().padLeft(2, '0')}:${(30 + index * 5).toString().padLeft(2, '0')}',
         'status': index % 3 == 0 ? 'Resolved' : index % 3 == 1 ? 'In Progress' : 'New',
-        'location': 'Area ${index + 1}, ${userData?['city'] ?? 'Your City'}',
+        'location': 'Area ${index + 1}, ${_getCityDisplay()}',
       };
     });
   }
@@ -171,13 +180,21 @@ class _AnalyticsDashboardState extends State<AnalyticsDashboard> {
 
   Widget _buildAreaHeader() {
     // Get user's location from profile data
-    final city = userData?['city']?.toString().trim() ?? '';
-    final state = userData?['state']?.toString().trim() ?? '';
+    String city = userData?['city']?.toString().trim() ?? '';
+    String state = userData?['state']?.toString().trim() ?? '';
     final address = userData?['address']?.toString().trim() ?? '';
     final pincode = userData?['pincode']?.toString() ?? '';
     
-    // Build location display
-    String locationDisplay = 'Your Area';
+    // Replace "anjar" with "rajkot" (case insensitive)
+    if (city.toLowerCase().contains('anjar')) {
+      city = city.replaceAll(RegExp(r'anjar', caseSensitive: false), 'rajkot');
+    }
+    if (state.toLowerCase().contains('anjar')) {
+      state = state.replaceAll(RegExp(r'anjar', caseSensitive: false), 'rajkot');
+    }
+    
+    // Build location display - default to Rajkot if no city
+    String locationDisplay = 'Rajkot';
     if (city.isNotEmpty) {
       locationDisplay = city;
       if (state.isNotEmpty) {
